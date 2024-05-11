@@ -18,16 +18,23 @@ try:
 except ModuleNotFoundError:
     GRAPHVIZ_MODULE = False
 
+# Checks if solph is installed
 try:
-    from oemof.network.network import Bus, Sink, Source, Transformer
-    NETWORK_MODULE = True
+    import oemof.solph
+    SOLPH_MODULE = True
 except ModuleNotFoundError:
-    NETWORK_MODULE = False
+    SOLPH_MODULE = False
 
+# checks if the solph version includes the necessary Classes
 try:
-    from oemof.solph.components import GenericStorage
+    from oemof.solph.buses import Bus
+    from oemof.solph.components import Sink, Source, Converter, GenericStorage
+    SOLPH_IMPORTS = True
 except ModuleNotFoundError:
-    GenericStorage = None
+    SOLPH_IMPORTS = False
+except ImportError:
+    SOLPH_IMPORTS = False
+
 
 
 def fixed_width_text(text, char_num=10):
@@ -116,14 +123,20 @@ class ESGraphRenderer:
         None: render the generated dot graph in the filepath
         """
         missing_modules = []
-        if NETWORK_MODULE is False or GRAPHVIZ_MODULE is False:
-            if NETWORK_MODULE is False:
-                missing_modules.append("oemof.network")
+        if SOLPH_MODULE is False or GRAPHVIZ_MODULE is False:
+            if SOLPH_MODULE is False:
+                missing_modules.append("oemof.solph")
             if GRAPHVIZ_MODULE is False:
                 missing_modules.append("graphviz")
             raise ModuleNotFoundError(
                 "You have to install the following packages to plot a graph\n"
                 "pip install {0}".format(" ".join(missing_modules))
+            )
+
+        if SOLPH_IMPORTS is False:
+            raise ImportError(
+                "Some of the required modules or classes of solph could not be imported.\n"
+                "Maybe you are using an outdated version of solph or your oemof-visio version is currently not working with the newer versions of oemof.solph."
             )
 
         if filepath is not None:
@@ -162,8 +175,6 @@ class ESGraphRenderer:
         # draw a node for each of the energy_system's component.
         # the shape depends on the component's type.
         for nd in energy_system.nodes:
-            # make sur the label is a string and not a tuple
-            nd.label = str(nd.label)
             if isinstance(nd, Bus):
                 self.add_bus(nd.label)
                 # keep the bus reference for drawing edges later
@@ -172,7 +183,7 @@ class ESGraphRenderer:
                 self.add_sink(nd.label)
             elif isinstance(nd, Source):
                 self.add_source(nd.label)
-            elif isinstance(nd, Transformer):
+            elif isinstance(nd, Converter):
                 self.add_transformer(nd.label)
             elif isinstance(nd, GenericStorage):
                 self.add_storage(nd.label)
